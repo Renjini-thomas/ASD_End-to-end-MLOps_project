@@ -1,18 +1,4 @@
-# ASD Diagnoser – Machine Learning with MLOps
 
-## Project Description
-This project implements an Autism Spectrum Disorder (ASD) diagnosis system using machine learning on MRI images from the ABIDE-I dataset. The system uses mid-sagittal MRI slices and handcrafted feature extraction methods, followed by Random Forest–based feature selection.  
-MLOps practices are integrated to ensure reproducibility, modularity, and version control.
-
----
-
-## Dataset
-- **Dataset**: ABIDE-I
-- **Image Type**: Mid-sagittal MRI slices
-- **Classes**:
-  - autistic
-  - control
-- **Directory Structure**:
 # ASD Diagnoser – Machine Learning with MLOps
 
 ## Project Description
@@ -91,5 +77,6 @@ This logic is identical to the final ML implementation.
 - Persisted feature ranking for experiment reproducibility
 
 ---
+
 
 
