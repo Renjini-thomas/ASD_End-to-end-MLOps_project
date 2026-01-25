@@ -5,6 +5,7 @@ from src.feature_extraction.extract_features import run_feature_extraction
 from src.feature_selection.rf_feature_selection import RFFeatureSelector
 from src.utils.logger import logger
 from src.training.train_models import ModelTrainer
+from src.evaluation.evaluate import ModelEvaluator
 
 if __name__ == "__main__":
     try:
@@ -52,6 +53,25 @@ if __name__ == "__main__":
         trainer.train_svm(top_k=50)
 
         logger.info("MODEL TRAINING COMPLETED SUCCESSFULLY")
+        # -------------------------------
+        # STEP 3: Model Evaluation      
+        # -------------------------------
+        logger.info("PIPELINE STARTED – STEP 3: MODEL EVALUATION")
+        evaluator = ModelEvaluator()
+        best_model, results = evaluator.evaluate_models()
+
+        best_model_name = best_model[0]
+        best_accuracy = best_model[1]
+        best_roc_auc = best_model[2]
+
+        evaluator.register_best_model(
+    best_model_name,
+    best_accuracy,
+    best_roc_auc
+)
+        logger.info("MODEL EVALUATION COMPLETED SUCCESSFULLY")
+
+        
 
     except Exception as e:
         logger.exception(e)
