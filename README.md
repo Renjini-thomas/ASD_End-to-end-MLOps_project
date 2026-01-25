@@ -15,10 +15,10 @@ MLOps practices are integrated to ensure reproducibility, modularity, and versio
   - control
 - **Directory Structure**:
 
-data/raw/abide1_data(sagittal_2)/
-├── autistic/
-└── control/
-
+- **data/raw/abide1_data(sagittal_2)/
+- ├── autistic/
+- └── control/
+- **
 
 The dataset is versioned using **DVC**.
 
