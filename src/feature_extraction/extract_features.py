@@ -1,12 +1,15 @@
 import os
 import cv2
 import numpy as np
+
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 from skimage.filters import threshold_multiotsu
 from skimage.morphology import opening, closing, disk
 from skimage.measure import regionprops, label
+
 from src.utils.logger import logger
 from src.utils.path import CONTROL_DIR, AUTISTIC_DIR, FEATURES_DIR
+
 
 class FeatureExtractor:
 
@@ -50,6 +53,21 @@ class FeatureExtractor:
             r.minor_axis_length
         ]
 
+    def augment_image(self, img):
+        augmented = [img]
+
+        augmented.append(cv2.flip(img, 1))
+
+        h, w = img.shape
+        for angle in [-10, 10]:
+            M = cv2.getRotationMatrix2D((w // 2, h // 2), angle, 1)
+            augmented.append(cv2.warpAffine(img, M, (w, h)))
+
+        augmented.append(cv2.convertScaleAbs(img, alpha=1.1, beta=10))
+        augmented.append(cv2.convertScaleAbs(img, alpha=0.9, beta=-10))
+
+        return augmented
+
     def extract_all_features(self, img):
         return (
             self.extract_glcm(img)
@@ -59,7 +77,7 @@ class FeatureExtractor:
 
 
 def run_feature_extraction():
-    logger.info("Starting feature extraction")
+    logger.info("Starting feature extraction with augmentation")
 
     extractor = FeatureExtractor()
     X, y = [], []
@@ -75,10 +93,12 @@ def run_feature_extraction():
             if img is None:
                 continue
 
-            features = extractor.extract_all_features(img)
-            X.append(features)
-            y.append(label)
+            augmented_images = extractor.augment_image(img)
 
+            for aug_img in augmented_images:
+                features = extractor.extract_all_features(aug_img)
+                X.append(features)
+                y.append(label)
 
     X = np.array(X)
     y = np.array(y)
@@ -86,6 +106,5 @@ def run_feature_extraction():
     os.makedirs(FEATURES_DIR, exist_ok=True)
     np.save(os.path.join(FEATURES_DIR, "X.npy"), X)
     np.save(os.path.join(FEATURES_DIR, "y.npy"), y)
-
 
     logger.info(f"Feature extraction completed. Shape: {X.shape}")

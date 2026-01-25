@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from src.feature_extraction.extract_features import run_feature_extraction
 from src.feature_selection.rf_feature_selection import RFFeatureSelector
 from src.utils.logger import logger
-
+from src.training.train_models import ModelTrainer
 
 if __name__ == "__main__":
     try:
@@ -37,6 +37,21 @@ if __name__ == "__main__":
         )
 
         logger.info("FEATURE EXTRACTION + SELECTION COMPLETED SUCCESSFULLY")
+        # -------------------------------
+        # STEP 2: Model Training
+        # -------------------------------
+        logger.info("PIPELINE STARTED – STEP 2: MODEL TRAINING")
+
+        trainer = ModelTrainer()
+
+        # IMPORTANT: run ONE model first
+        trainer.train_decision_tree(top_k=30)
+
+        # Uncomment only after DT works
+        trainer.train_knn(top_k=10, n_neighbors=3)
+        trainer.train_svm(top_k=50)
+
+        logger.info("MODEL TRAINING COMPLETED SUCCESSFULLY")
 
     except Exception as e:
         logger.exception(e)
