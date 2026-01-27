@@ -10,7 +10,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score, roc_auc_score, precision_score, recall_score, f1_score
 
 from src.utils.logger import logger
 from src.utils.path import FEATURES_DIR, ARTIFACTS_DIR
@@ -73,17 +73,27 @@ class ModelTrainer:
 
             acc = accuracy_score(yte, y_pred)
             roc = roc_auc_score(yte, y_prob)
+            precision = precision_score(yte, y_pred)
+            recall = recall_score(yte, y_pred)
+            f1 = f1_score(yte, y_pred)
+
 
             # Logging
             mlflow.log_param("model", "DecisionTree")
             mlflow.log_param("top_k_features", top_k)
             mlflow.log_metric("accuracy", acc)
             mlflow.log_metric("roc_auc", roc)
+            mlflow.log_metric("precision", precision)
+            mlflow.log_metric("recall", recall)
+            mlflow.log_metric("f1_score", f1)
             mlflow.sklearn.log_model(model, "decision_tree_model")
 
             wandb.log({
                 "accuracy": acc,
-                "roc_auc": roc
+                "roc_auc": roc,
+                "precision": precision,
+                "recall": recall,   
+                "f1_score": f1
             })
 
             joblib.dump(
@@ -94,7 +104,7 @@ class ModelTrainer:
             wandb.finish()
 
         logger.info(
-            f"Decision Tree completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}"
+            f"Decision Tree completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}"
         )
 
     # ------------------------------------------------------------------
@@ -125,6 +135,10 @@ class ModelTrainer:
 
             acc = accuracy_score(yte, y_pred)
             roc = roc_auc_score(yte, y_prob)
+            precision = precision_score(yte, y_pred)
+            recall = recall_score(yte, y_pred)
+            f1 = f1_score(yte, y_pred)
+
 
             # Logging
             mlflow.log_param("model", "KNN")
@@ -132,11 +146,17 @@ class ModelTrainer:
             mlflow.log_param("n_neighbors", n_neighbors)
             mlflow.log_metric("accuracy", acc)
             mlflow.log_metric("roc_auc", roc)
+            mlflow.log_metric("precision", precision)
+            mlflow.log_metric("recall", recall) 
+            mlflow.log_metric("f1_score", f1)
             mlflow.sklearn.log_model(model, "knn_model")
 
             wandb.log({
                 "accuracy": acc,
-                "roc_auc": roc
+                "roc_auc": roc,
+                "precision": precision,
+                "recall": recall,   
+                "f1_score": f1
             })
 
             joblib.dump(
@@ -147,7 +167,7 @@ class ModelTrainer:
             wandb.finish()
 
         logger.info(
-            f"KNN completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}"
+            f"KNN completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}"
         )
 
     # ------------------------------------------------------------------
@@ -184,6 +204,10 @@ class ModelTrainer:
 
             acc = accuracy_score(yte, y_pred)
             roc = roc_auc_score(yte, y_prob)
+            precision = precision_score(yte, y_pred)
+            recall = recall_score(yte, y_pred)
+            f1 = f1_score(yte, y_pred)
+
 
             # Logging
             mlflow.log_param("model", "SVM")
@@ -191,11 +215,17 @@ class ModelTrainer:
             mlflow.log_param("top_k_features", top_k)
             mlflow.log_metric("accuracy", acc)
             mlflow.log_metric("roc_auc", roc)
+            mlflow.log_metric("precision", precision)
+            mlflow.log_metric("recall", recall) 
+            mlflow.log_metric("f1_score", f1)   
             mlflow.sklearn.log_model(model, "svm_model")
 
             wandb.log({
                 "accuracy": acc,
-                "roc_auc": roc
+                "roc_auc": roc,
+                "precision": precision,
+                "recall": recall,
+                "f1_score": f1
             })
 
             joblib.dump(
@@ -210,5 +240,6 @@ class ModelTrainer:
             wandb.finish()
 
         logger.info(
-            f"SVM completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}"
+            f"SVM completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}"
+
         )

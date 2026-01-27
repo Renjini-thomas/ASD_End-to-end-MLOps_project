@@ -4,9 +4,9 @@ dataset:
   random_state: 42
 
 features:
-  ct_best: 30
+  ct_best: 10
   knn_best: 10
-  svm_best: 50
+  svm_best: 40
 
 models:
   knn_neighbors: 3
