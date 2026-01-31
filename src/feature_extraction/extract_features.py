@@ -4,38 +4,52 @@ import numpy as np
 
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 from skimage.filters import threshold_multiotsu
-from skimage.morphology import opening, closing, disk
 from skimage.measure import regionprops, label
 
 from src.utils.logger import logger
-from src.utils.path import CONTROL_DIR, AUTISTIC_DIR, FEATURES_DIR
+from src.utils.path import (
+    TRAIN_AUTISM_DIR,
+    TRAIN_CONTROL_DIR,
+    FEATURES_DIR
+)
 
 
 class FeatureExtractor:
+    """
+    Feature extractor for DDPM-augmented sMRI images
+    """
 
     def extract_glcm(self, img):
-        img = cv2.resize(img, (256, 256))
-        glcm = graycomatrix(img, [1], [0], 256, symmetric=True, normed=True)
-        mean = np.mean(img)
+        glcm = graycomatrix(
+            img,
+            distances=[1],
+            angles=[0],
+            levels=256,
+            symmetric=True,
+            normed=True
+        )
 
         return [
-            graycoprops(glcm, 'contrast').mean(),
-            graycoprops(glcm, 'correlation').mean(),
-            graycoprops(glcm, 'energy').mean(),
-            graycoprops(glcm, 'homogeneity').mean(),
-            mean,
+            graycoprops(glcm, 'contrast')[0, 0],
+            graycoprops(glcm, 'correlation')[0, 0],
+            graycoprops(glcm, 'energy')[0, 0],
+            graycoprops(glcm, 'homogeneity')[0, 0],
+            np.mean(img),
             np.var(img),
             -np.sum(glcm * np.log2(glcm + 1e-10))
         ]
 
     def extract_lbp(self, img):
-        img = cv2.resize(img, (256, 256))
-        lbp = local_binary_pattern(img, 8, 1, method="uniform")
-        hist, _ = np.histogram(lbp.ravel(), bins=10, range=(0, 10), density=True)
+        lbp = local_binary_pattern(img, P=8, R=1, method="uniform")
+        hist, _ = np.histogram(
+            lbp.ravel(),
+            bins=10,
+            range=(0, 10),
+            density=True
+        )
         return hist.tolist()
 
     def extract_gfcc(self, img):
-        img = cv2.resize(img, (256, 256))
         thresholds = threshold_multiotsu(img, classes=3)
         segmented = np.digitize(img, thresholds)
 
@@ -45,28 +59,14 @@ class FeatureExtractor:
         if not regions:
             return [0, 0, 0, 0]
 
-        r = max(regions, key=lambda x: x.area)
+        largest = max(regions, key=lambda r: r.area)
+
         return [
-            r.area,
-            r.perimeter,
-            r.major_axis_length,
-            r.minor_axis_length
+            largest.area,
+            largest.perimeter,
+            largest.major_axis_length,
+            largest.minor_axis_length
         ]
-
-    def augment_image(self, img):
-        augmented = [img]
-
-        augmented.append(cv2.flip(img, 1))
-
-        h, w = img.shape
-        for angle in [-10, 10]:
-            M = cv2.getRotationMatrix2D((w // 2, h // 2), angle, 1)
-            augmented.append(cv2.warpAffine(img, M, (w, h)))
-
-        augmented.append(cv2.convertScaleAbs(img, alpha=1.1, beta=10))
-        augmented.append(cv2.convertScaleAbs(img, alpha=0.9, beta=-10))
-
-        return augmented
 
     def extract_all_features(self, img):
         return (
@@ -77,34 +77,46 @@ class FeatureExtractor:
 
 
 def run_feature_extraction():
-    logger.info("Starting feature extraction with augmentation")
+    """
+    Extract features from DDPM-augmented TRAIN dataset only
+    """
+    logger.info("Starting feature extraction (DDPM-augmented TRAIN set)")
 
     extractor = FeatureExtractor()
     X, y = [], []
 
-    for folder, label in [(CONTROL_DIR, 0), (AUTISTIC_DIR, 1)]:
+    dataset = [
+        (TRAIN_CONTROL_DIR, 0, "Control"),
+        (TRAIN_AUTISM_DIR, 1, "Autism")
+    ]
+
+    for folder, label, name in dataset:
         if not os.path.exists(folder):
             raise FileNotFoundError(f"Dataset folder not found: {folder}")
 
-        for fname in os.listdir(folder):
-            path = os.path.join(folder, fname)
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        logger.info(f"Processing {name} images from {folder}")
 
+        for fname in os.listdir(folder):
+            img_path = os.path.join(folder, fname)
+
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
             if img is None:
                 continue
 
-            augmented_images = extractor.augment_image(img)
+            img = cv2.resize(img, (256, 256))
 
-            for aug_img in augmented_images:
-                features = extractor.extract_all_features(aug_img)
-                X.append(features)
-                y.append(label)
+            features = extractor.extract_all_features(img)
+            X.append(features)
+            y.append(label)
 
-    X = np.array(X)
-    y = np.array(y)
+    X = np.array(X, dtype=np.float32)
+    y = np.array(y, dtype=np.int64)
 
     os.makedirs(FEATURES_DIR, exist_ok=True)
+
     np.save(os.path.join(FEATURES_DIR, "X.npy"), X)
     np.save(os.path.join(FEATURES_DIR, "y.npy"), y)
 
-    logger.info(f"Feature extraction completed. Shape: {X.shape}")
+    logger.info(f"Feature extraction completed | Shape: {X.shape}")
+    logger.info(f"Features saved to {FEATURES_DIR}")
+    
