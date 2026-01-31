@@ -1,0 +1,6 @@
+outs:
+- md5: 69de0a64eb740983fee9492146d3b394.dir
+  size: 36955027
+  nfiles: 1286
+  hash: md5
+  path: augmented_train_500
