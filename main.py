@@ -31,9 +31,17 @@ if __name__ == "__main__":
             f"X_test: {X_test.shape}, y_test: {y_test.shape}"
         )
 
-    #     # ==================================================
-    #     # STEP 2: TRAIN–TEST SPLIT (FREEZE TEST SET)
-    #     # ==================================================
+
+        # ==================================================
+        # STEP 2: TRAIN–TEST SPLIT (FREEZE TEST SET)
+        # ==================================================
+        logger.info("PIPELINE STARTED – STEP 2: Rnadom Forest FEATURE SELECTION")
+        X_train = np.load(os.path.join(FEATURES_DIR, "X_train.npy"))
+        y_train = np.load(os.path.join(FEATURES_DIR, "y_train.npy"))
+        logger.info(f"Loaded TRAIN features | X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+        selector = RFFeatureSelector(n_estimators=300, random_state=42)
+        sorted_idx = selector.rank_features(X_train, y_train)
+        logger.info(f"RF feature ranking completed successfully | total features ranked: {len(sorted_idx)}")
     #     logger.info("Creating train–test split")
 
     #     X_train, X_test, y_train, y_test = train_test_split(

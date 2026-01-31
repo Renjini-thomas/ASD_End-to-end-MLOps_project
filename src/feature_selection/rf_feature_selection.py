@@ -7,6 +7,13 @@ from src.utils.path import FEATURES_DIR
 
 
 class RFFeatureSelector:
+    """
+    Random Forest based feature ranking.
+    NOTE:
+    - This class ONLY ranks features.
+    - It does NOT select top-K features.
+    """
+
     def __init__(self, n_estimators=300, random_state=42):
         self.n_estimators = n_estimators
         self.random_state = random_state
@@ -14,10 +21,15 @@ class RFFeatureSelector:
     def rank_features(self, X_train, y_train):
         """
         Rank features using Random Forest importance.
-        This method DOES NOT select top-K features.
-        """
 
-        logger.info("Starting RF feature ranking (TRAIN DATA ONLY)")
+        Args:
+            X_train (np.ndarray): Training feature matrix
+            y_train (np.ndarray): Training labels
+
+        Returns:
+            np.ndarray: Indices of features sorted by importance (descending)
+        """
+        logger.info("Starting RF feature ranking (TRAIN data only)")
 
         rf = RandomForestClassifier(
             n_estimators=self.n_estimators,
@@ -31,15 +43,21 @@ class RFFeatureSelector:
         importances = rf.feature_importances_
         sorted_indices = np.argsort(importances)[::-1]
 
-        # Save ranking for reuse in training
+        # Save ranking artifacts
         os.makedirs(FEATURES_DIR, exist_ok=True)
+
         np.save(
             os.path.join(FEATURES_DIR, "sorted_feature_indices.npy"),
             sorted_indices
         )
 
+        np.save(
+            os.path.join(FEATURES_DIR, "feature_importances.npy"),
+            importances
+        )
+
         logger.info(
-            f"Feature ranking completed | Total features ranked: {len(sorted_indices)}"
+            f"RF feature ranking completed | Total features ranked: {len(sorted_indices)}"
         )
 
         return sorted_indices
