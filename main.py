@@ -19,10 +19,17 @@ if __name__ == "__main__":
 
         run_feature_extraction()
 
-        X = np.load(os.path.join(FEATURES_DIR, "X.npy"))
-        y = np.load(os.path.join(FEATURES_DIR, "y.npy"))
+        X_train = np.load(os.path.join(FEATURES_DIR, "X_train.npy"))
+        y_train = np.load(os.path.join(FEATURES_DIR, "y_train.npy"))
 
-        logger.info(f"Features loaded | Shape={X.shape}")
+        X_test = np.load(os.path.join(FEATURES_DIR, "X_test.npy"))
+        y_test = np.load(os.path.join(FEATURES_DIR, "y_test.npy"))
+
+        logger.info(
+            f"Features loaded | "
+            f"X_train: {X_train.shape}, y_train: {y_train.shape} | "
+            f"X_test: {X_test.shape}, y_test: {y_test.shape}"
+        )
 
     #     # ==================================================
     #     # STEP 2: TRAIN–TEST SPLIT (FREEZE TEST SET)
@@ -44,20 +51,19 @@ if __name__ == "__main__":
 
     #     logger.info("Train–test split completed and test set saved")
 
-    #     # ==================================================
-    #     # STEP 3: FEATURE SELECTION (RF RANKING)
-    #     # ==================================================
-    #     logger.info("PIPELINE STARTED – STEP 2: FEATURE SELECTION")
+    # ==================================================
+# # STEP 3: FEATURE SELECTION (RF RANKING)
+# # ==================================================
+#         logger.info("PIPELINE STARTED – STEP 3: FEATURE SELECTION")
 
-    #     selector = RFFeatureSelector()
-    #     sorted_idx = selector.rank_features(X_train, y_train)
+#         selector = RFFeatureSelector(n_estimators=300, random_state=42)
 
-    #     np.save(
-    #         os.path.join(FEATURES_DIR, "sorted_feature_indices.npy"),
-    #         sorted_idx
-    #     )
+#         sorted_idx = selector.rank_features(X_train, y_train)
 
-    #     logger.info("FEATURE EXTRACTION + SELECTION COMPLETED SUCCESSFULLY")
+#         logger.info(
+#     f"RF feature ranking saved | Total features ranked: {len(sorted_idx)}"
+#         )
+
 
     #     # ==================================================
     #     # STEP 4: MODEL TRAINING

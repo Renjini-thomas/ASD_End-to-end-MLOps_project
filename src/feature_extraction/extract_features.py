@@ -10,6 +10,8 @@ from src.utils.logger import logger
 from src.utils.path import (
     TRAIN_AUTISM_DIR,
     TRAIN_CONTROL_DIR,
+    TEST_AUTISM_DIR,
+    TEST_CONTROL_DIR,
     FEATURES_DIR
 )
 
@@ -76,25 +78,20 @@ class FeatureExtractor:
         )
 
 
-def run_feature_extraction():
+def _process_split(dataset, split_name):
     """
-    Extract features from DDPM-augmented TRAIN dataset only
+    Process a dataset split (train/test)
     """
-    logger.info("Starting feature extraction (DDPM-augmented TRAIN set)")
-
     extractor = FeatureExtractor()
     X, y = [], []
 
-    dataset = [
-        (TRAIN_CONTROL_DIR, 0, "Control"),
-        (TRAIN_AUTISM_DIR, 1, "Autism")
-    ]
+    logger.info(f"Processing {split_name.upper()} dataset")
 
     for folder, label, name in dataset:
         if not os.path.exists(folder):
             raise FileNotFoundError(f"Dataset folder not found: {folder}")
 
-        logger.info(f"Processing {name} images from {folder}")
+        logger.info(f" → {name}: {folder}")
 
         for fname in os.listdir(folder):
             img_path = os.path.join(folder, fname)
@@ -109,14 +106,45 @@ def run_feature_extraction():
             X.append(features)
             y.append(label)
 
-    X = np.array(X, dtype=np.float32)
-    y = np.array(y, dtype=np.int64)
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int64)
+
+
+def run_feature_extraction():
+    """
+    Extract features from DDPM-augmented TRAIN and TEST datasets separately
+    """
+    logger.info("PIPELINE STARTED – STEP 1: FEATURE EXTRACTION")
 
     os.makedirs(FEATURES_DIR, exist_ok=True)
 
-    np.save(os.path.join(FEATURES_DIR, "X.npy"), X)
-    np.save(os.path.join(FEATURES_DIR, "y.npy"), y)
+    # -----------------------
+    # TRAIN SET
+    # -----------------------
+    train_dataset = [
+        (TRAIN_CONTROL_DIR, 0, "Control"),
+        (TRAIN_AUTISM_DIR, 1, "Autism")
+    ]
 
-    logger.info(f"Feature extraction completed | Shape: {X.shape}")
-    logger.info(f"Features saved to {FEATURES_DIR}")
-    
+    X_train, y_train = _process_split(train_dataset, "train")
+
+    np.save(os.path.join(FEATURES_DIR, "X_train.npy"), X_train)
+    np.save(os.path.join(FEATURES_DIR, "y_train.npy"), y_train)
+
+    logger.info(f"Train features saved | X_train shape: {X_train.shape}")
+
+    # -----------------------
+    # TEST SET
+    # -----------------------
+    test_dataset = [
+        (TEST_CONTROL_DIR, 0, "Control"),
+        (TEST_AUTISM_DIR, 1, "Autism")
+    ]
+
+    X_test, y_test = _process_split(test_dataset, "test")
+
+    np.save(os.path.join(FEATURES_DIR, "X_test.npy"), X_test)
+    np.save(os.path.join(FEATURES_DIR, "y_test.npy"), y_test)
+
+    logger.info(f"Test features saved | X_test shape: {X_test.shape}")
+
+    logger.info("FEATURE EXTRACTION COMPLETED SUCCESSFULLY")
