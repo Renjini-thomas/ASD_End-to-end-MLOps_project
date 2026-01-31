@@ -1,14 +1,31 @@
 dataset:
+  name: augmented_train_500
+  type: ddpm_augmented
   image_size: 256
-  split_ratio: 0.3
-  random_state: 42
+  split: predefined        # IMPORTANT
+  train_dir: data/augmented_train_500/train
+  test_dir: data/augmented_train_500/test
+  classes:
+    - Autism
+    - Control
 
 features:
-  ct_best: 10
+  total_extracted: 21
+  selection_method: random_forest
+  ct_best: 20
   knn_best: 10
-  svm_best: 40
+  svm_best: 20
+
 
 models:
   knn_neighbors: 3
   svm_kernel: linear
   rf_estimators: 300
+
+augmentation:
+  enabled: true
+  type: ddpm
+  mode: offline
+  source: pretrained
+  applied_on: training_only
+  noise_steps: 10
