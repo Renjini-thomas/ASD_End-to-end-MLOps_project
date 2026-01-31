@@ -10,7 +10,7 @@ dataset:
     - Control
 
 features:
-  total_extracted: 21
+  total_extracted: 274
   selection_method: random_forest
   ct_best: 20
   knn_best: 10

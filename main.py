@@ -73,9 +73,15 @@ if __name__ == "__main__":
 #         )
 
 
-    #     # ==================================================
-    #     # STEP 4: MODEL TRAINING
-    #     # ==================================================
+        # ==================================================
+        # STEP 4: MODEL TRAINING
+        # ==================================================
+        logger.info("PIPELINE STARTED – STEP 3: MODEL TRAINING")
+        trainer = ModelTrainer(params_path="configs/params.yaml")
+        trainer.train_decision_tree()
+        trainer.train_knn()
+        trainer.train_svm() 
+        logger.info("MODEL TRAINING COMPLETED SUCCESSFULLY")
     #     logger.info("PIPELINE STARTED – STEP 3: MODEL TRAINING")
 
     #     trainer = ModelTrainer()
@@ -88,32 +94,32 @@ if __name__ == "__main__":
     #     logger.info("MODEL TRAINING COMPLETED SUCCESSFULLY")
 
     #     # ==================================================
-    #     # STEP 5: MODEL EVALUATION & REGISTRATION
+    #     # STEP 4: MODEL EVALUATION & REGISTRATION
     #     # ==================================================
-    #     logger.info("PIPELINE STARTED – STEP 4: MODEL EVALUATION")
+        logger.info("PIPELINE STARTED – STEP 4: MODEL EVALUATION")
 
-    #     evaluator = ModelEvaluator()
-    #     best_model, results = evaluator.evaluate_models()
+        evaluator = ModelEvaluator()
+        best_model, results = evaluator.evaluate_models()
 
-    #     (
-    #         best_model_name,
-    #         best_accuracy,
-    #         best_roc_auc,
-    #         best_precision,
-    #         best_recall,
-    #         best_f1
-    #     ) = best_model
+        (
+            best_model_name,
+            best_accuracy,
+            best_roc_auc,
+            best_precision,
+            best_recall,
+            best_f1
+        ) = best_model
 
-    #     evaluator.register_best_model(
-    #         best_model_name=best_model_name,
-    #         accuracy=best_accuracy,
-    #         roc_auc=best_roc_auc,
-    #         precision=best_precision,
-    #         recall=best_recall,
-    #         f1=best_f1
-    #     )
+        evaluator.register_best_model(
+            best_model_name=best_model_name,
+            accuracy=best_accuracy,
+            roc_auc=best_roc_auc,
+            precision=best_precision,
+            recall=best_recall,
+            f1=best_f1
+        )
 
-    #     logger.info("MODEL EVALUATION & REGISTRATION COMPLETED SUCCESSFULLY")
+        logger.info("MODEL EVALUATION & REGISTRATION COMPLETED SUCCESSFULLY")
 
     except Exception as e:
         logger.exception(e)

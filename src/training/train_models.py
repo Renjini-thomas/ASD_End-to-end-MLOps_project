@@ -1,245 +1,212 @@
 import os
+import yaml
 import numpy as np
 import joblib
 import mlflow
 import mlflow.sklearn
 import wandb
 
-from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, roc_auc_score, precision_score, recall_score, f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    precision_score,
+    recall_score,
+    f1_score
+)
 
 from src.utils.logger import logger
 from src.utils.path import FEATURES_DIR, ARTIFACTS_DIR
 
 
 class ModelTrainer:
-    def __init__(self):
-        # MLflow configuration (local)
+    def __init__(self, params_path="params.yaml"):
+        # Load params.yaml
+        with open(params_path, "r") as f:
+            self.params = yaml.safe_load(f)
+
+        # MLflow config
         mlflow.set_tracking_uri("file:./mlruns")
         mlflow.set_experiment("ASD_Diagnoser_Model_Training")
 
-        # Artifacts directory
+        # Artifact dirs
         self.models_dir = os.path.join(ARTIFACTS_DIR, "models")
         os.makedirs(self.models_dir, exist_ok=True)
 
+        # Params
+        self.ct_k = self.params["features"]["ct_best"]
+        self.knn_k = self.params["features"]["knn_best"]
+        self.svm_k = self.params["features"]["svm_best"]
+
+        self.knn_neighbors = self.params["models"]["knn_neighbors"]
+        self.svm_kernel = self.params["models"]["svm_kernel"]
+
     def _load_data(self):
         """
-        Loads features, labels, and RF-ranked feature indices.
-        Uses the same split as the final implementation.
+        Load predefined train/test split and RF ranking
         """
-        X = np.load(os.path.join(FEATURES_DIR, "X.npy"))
-        y = np.load(os.path.join(FEATURES_DIR, "y.npy"))
+        X_train = np.load(os.path.join(FEATURES_DIR, "X_train.npy"))
+        y_train = np.load(os.path.join(FEATURES_DIR, "y_train.npy"))
+        X_test = np.load(os.path.join(FEATURES_DIR, "X_test.npy"))
+        y_test = np.load(os.path.join(FEATURES_DIR, "y_test.npy"))
+
         sorted_idx = np.load(
             os.path.join(FEATURES_DIR, "sorted_feature_indices.npy")
         )
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X,
-            y,
-            test_size=0.3,
-            stratify=y,
-            random_state=42
+        logger.info(
+            f"Loaded data | "
+            f"X_train={X_train.shape}, X_test={X_test.shape}"
         )
 
         return X_train, X_test, y_train, y_test, sorted_idx
 
-    # ------------------------------------------------------------------
-    # Decision Tree (Final implementation)
-    # ------------------------------------------------------------------
-    def train_decision_tree(self, top_k=30):
-        logger.info(f"Training Decision Tree with top-{top_k} features")
+    # ==================================================
+    # Decision Tree
+    # ==================================================
+    def train_decision_tree(self):
+        logger.info(f"Training Decision Tree | Top-{self.ct_k} features")
 
         Xtr, Xte, ytr, yte, idx = self._load_data()
 
-        Xtr = Xtr[:, idx][:, :top_k]
-        Xte = Xte[:, idx][:, :top_k]
+        Xtr = Xtr[:, idx][:, :self.ct_k]
+        Xte = Xte[:, idx][:, :self.ct_k]
 
-        with mlflow.start_run(run_name=f"DT_top{top_k}"):
-            wandb.init(
-                project="ASD-Diagnoser",
-                name=f"DT_top{top_k}",
-                reinit=True
+        with mlflow.start_run(run_name="DecisionTree"):
+            wandb.init(project="ASD-Diagnoser", name="DecisionTree")
+
+            model = DecisionTreeClassifier(
+                criterion="gini",
+                splitter="best",
+                max_depth=None,
+                min_samples_split=2,
+                min_samples_leaf=1,
+                random_state=42
             )
 
-            model = DecisionTreeClassifier(random_state=42)
             model.fit(Xtr, ytr)
 
             y_pred = model.predict(Xte)
             y_prob = model.predict_proba(Xte)[:, 1]
 
-            acc = accuracy_score(yte, y_pred)
-            roc = roc_auc_score(yte, y_prob)
-            precision = precision_score(yte, y_pred)
-            recall = recall_score(yte, y_pred)
-            f1 = f1_score(yte, y_pred)
+            metrics = {
+                "accuracy": accuracy_score(yte, y_pred),
+                "roc_auc": roc_auc_score(yte, y_prob),
+                # "precision": precision_score(yte, y_pred),
+                # "recall": recall_score(yte, y_pred),
+                # "f1_score": f1_score(yte, y_pred)
+            }
 
+            for k, v in metrics.items():
+                mlflow.log_metric(k, v)
 
-            # Logging
+            mlflow.log_param("top_k_features", self.ct_k)
             mlflow.log_param("model", "DecisionTree")
-            mlflow.log_param("top_k_features", top_k)
-            mlflow.log_metric("accuracy", acc)
-            mlflow.log_metric("roc_auc", roc)
-            mlflow.log_metric("precision", precision)
-            mlflow.log_metric("recall", recall)
-            mlflow.log_metric("f1_score", f1)
-            mlflow.sklearn.log_model(model, "decision_tree_model")
 
-            wandb.log({
-                "accuracy": acc,
-                "roc_auc": roc,
-                "precision": precision,
-                "recall": recall,   
-                "f1_score": f1
-            })
+            mlflow.sklearn.log_model(model, "decision_tree")
+            joblib.dump(model, os.path.join(self.models_dir, "decision_tree.pkl"))
 
-            joblib.dump(
-                model,
-                os.path.join(self.models_dir, "decision_tree_model.pkl")
-            )
-
+            wandb.log(metrics)
             wandb.finish()
 
-        logger.info(
-            f"Decision Tree completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}"
-        )
+        logger.info(f"Decision Tree metrics: {metrics}")
 
-    # ------------------------------------------------------------------
-    # KNN (Final implementation)
-    # ------------------------------------------------------------------
-    def train_knn(self, top_k=10, n_neighbors=3):
-        logger.info(
-            f"Training KNN with top-{top_k} features, k={n_neighbors}"
-        )
+    # ==================================================
+    # KNN
+    # ==================================================
+    def train_knn(self):
+        logger.info(f"Training KNN | Top-{self.knn_k} features")
 
         Xtr, Xte, ytr, yte, idx = self._load_data()
 
-        Xtr = Xtr[:, idx][:, :top_k]
-        Xte = Xte[:, idx][:, :top_k]
+        Xtr = Xtr[:, idx][:, :self.knn_k]
+        Xte = Xte[:, idx][:, :self.knn_k]
 
-        with mlflow.start_run(run_name=f"KNN_top{top_k}_k{n_neighbors}"):
-            wandb.init(
-                project="ASD-Diagnoser",
-                name=f"KNN_top{top_k}",
-                reinit=True
+        with mlflow.start_run(run_name="KNN"):
+            wandb.init(project="ASD-Diagnoser", name="KNN")
+
+            model = KNeighborsClassifier(
+                n_neighbors=self.knn_neighbors
             )
 
-            model = KNeighborsClassifier(n_neighbors=n_neighbors)
             model.fit(Xtr, ytr)
 
             y_pred = model.predict(Xte)
             y_prob = model.predict_proba(Xte)[:, 1]
 
-            acc = accuracy_score(yte, y_pred)
-            roc = roc_auc_score(yte, y_prob)
-            precision = precision_score(yte, y_pred)
-            recall = recall_score(yte, y_pred)
-            f1 = f1_score(yte, y_pred)
+            metrics = {
+                "accuracy": accuracy_score(yte, y_pred),
+                "roc_auc": roc_auc_score(yte, y_prob),
+                # "precision": precision_score(yte, y_pred),
+                # "recall": recall_score(yte, y_pred),
+                # "f1_score": f1_score(yte, y_pred)
+            }
 
+            for k, v in metrics.items():
+                mlflow.log_metric(k, v)
 
-            # Logging
-            mlflow.log_param("model", "KNN")
-            mlflow.log_param("top_k_features", top_k)
-            mlflow.log_param("n_neighbors", n_neighbors)
-            mlflow.log_metric("accuracy", acc)
-            mlflow.log_metric("roc_auc", roc)
-            mlflow.log_metric("precision", precision)
-            mlflow.log_metric("recall", recall) 
-            mlflow.log_metric("f1_score", f1)
-            mlflow.sklearn.log_model(model, "knn_model")
+            mlflow.log_param("top_k_features", self.knn_k)
+            mlflow.log_param("n_neighbors", self.knn_neighbors)
 
-            wandb.log({
-                "accuracy": acc,
-                "roc_auc": roc,
-                "precision": precision,
-                "recall": recall,   
-                "f1_score": f1
-            })
+            mlflow.sklearn.log_model(model, "knn")
+            joblib.dump(model, os.path.join(self.models_dir, "knn.pkl"))
 
-            joblib.dump(
-                model,
-                os.path.join(self.models_dir, "knn_model.pkl")
-            )
-
+            wandb.log(metrics)
             wandb.finish()
 
-        logger.info(
-            f"KNN completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}"
-        )
+        logger.info(f"KNN metrics: {metrics}")
 
-    # ------------------------------------------------------------------
-    # SVM (Final implementation – Linear kernel)
-    # ------------------------------------------------------------------
-    def train_svm(self, top_k=50):
-        logger.info(f"Training SVM (linear) with top-{top_k} features")
+    # ==================================================
+    # SVM
+    # ==================================================
+    def train_svm(self):
+        logger.info(f"Training SVM | Top-{self.svm_k} features")
 
         Xtr, Xte, ytr, yte, idx = self._load_data()
 
-        Xtr = Xtr[:, idx][:, :top_k]
-        Xte = Xte[:, idx][:, :top_k]
+        Xtr = Xtr[:, idx][:, :self.svm_k]
+        Xte = Xte[:, idx][:, :self.svm_k]
 
         scaler = StandardScaler()
         Xtr = scaler.fit_transform(Xtr)
         Xte = scaler.transform(Xte)
 
-        with mlflow.start_run(run_name=f"SVM_top{top_k}_linear"):
-            wandb.init(
-                project="ASD-Diagnoser",
-                name=f"SVM_top{top_k}",
-                reinit=True
-            )
+        with mlflow.start_run(run_name="SVM"):
+            wandb.init(project="ASD-Diagnoser", name="SVM")
 
             model = SVC(
-                kernel="linear",
+                kernel=self.svm_kernel,
                 probability=True,
                 random_state=42
             )
+
             model.fit(Xtr, ytr)
 
             y_pred = model.predict(Xte)
             y_prob = model.predict_proba(Xte)[:, 1]
 
-            acc = accuracy_score(yte, y_pred)
-            roc = roc_auc_score(yte, y_prob)
-            precision = precision_score(yte, y_pred)
-            recall = recall_score(yte, y_pred)
-            f1 = f1_score(yte, y_pred)
+            metrics = {
+                "accuracy": accuracy_score(yte, y_pred),
+                "roc_auc": roc_auc_score(yte, y_prob),
+                # "precision": precision_score(yte, y_pred),
+                # "recall": recall_score(yte, y_pred),
+                # "f1_score": f1_score(yte, y_pred)
+            }
 
+            for k, v in metrics.items():
+                mlflow.log_metric(k, v)
 
-            # Logging
-            mlflow.log_param("model", "SVM")
-            mlflow.log_param("kernel", "linear")
-            mlflow.log_param("top_k_features", top_k)
-            mlflow.log_metric("accuracy", acc)
-            mlflow.log_metric("roc_auc", roc)
-            mlflow.log_metric("precision", precision)
-            mlflow.log_metric("recall", recall) 
-            mlflow.log_metric("f1_score", f1)   
-            mlflow.sklearn.log_model(model, "svm_model")
+            mlflow.log_param("top_k_features", self.svm_k)
+            mlflow.log_param("kernel", self.svm_kernel)
 
-            wandb.log({
-                "accuracy": acc,
-                "roc_auc": roc,
-                "precision": precision,
-                "recall": recall,
-                "f1_score": f1
-            })
+            mlflow.sklearn.log_model(model, "svm")
+            joblib.dump(model, os.path.join(self.models_dir, "svm.pkl"))
+            joblib.dump(scaler, os.path.join(self.models_dir, "svm_scaler.pkl"))
 
-            joblib.dump(
-                model,
-                os.path.join(self.models_dir, "svm_model.pkl")
-            )
-            joblib.dump(
-                scaler,
-                os.path.join(self.models_dir, "svm_scaler.pkl")
-            )
-
+            wandb.log(metrics)
             wandb.finish()
 
-        logger.info(
-            f"SVM completed | Accuracy={acc:.4f}, ROC-AUC={roc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}"
-
-        )
+        logger.info(f"SVM metrics: {metrics}")

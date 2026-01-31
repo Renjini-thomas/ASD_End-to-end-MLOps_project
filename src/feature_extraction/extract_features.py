@@ -25,28 +25,33 @@ class FeatureExtractor:
         glcm = graycomatrix(
             img,
             distances=[1],
-            angles=[0],
+            angles=[0, np.pi/4, np.pi/2, 3*np.pi/4],
             levels=256,
             symmetric=True,
             normed=True
         )
 
         return [
-            graycoprops(glcm, 'contrast')[0, 0],
-            graycoprops(glcm, 'correlation')[0, 0],
-            graycoprops(glcm, 'energy')[0, 0],
-            graycoprops(glcm, 'homogeneity')[0, 0],
+            graycoprops(glcm, 'contrast').mean(),
+            graycoprops(glcm, 'correlation').mean(),
+            graycoprops(glcm, 'energy').mean(),
+            graycoprops(glcm, 'homogeneity').mean(),
+            graycoprops(glcm, 'ASM').mean(),
+            graycoprops(glcm, 'dissimilarity').mean(),
             np.mean(img),
             np.var(img),
-            -np.sum(glcm * np.log2(glcm + 1e-10))
+            -np.sum(glcm * np.log2(glcm + 1e-10)),
+            np.mean((img - np.mean(img)) ** 3),   # skewness proxy
+            np.mean((img - np.mean(img)) ** 4),   # kurtosis proxy
+            glcm.max()
         ]
 
     def extract_lbp(self, img):
         lbp = local_binary_pattern(img, P=8, R=1, method="uniform")
         hist, _ = np.histogram(
             lbp.ravel(),
-            bins=10,
-            range=(0, 10),
+            bins=256,
+            range=(0, 256),
             density=True
         )
         return hist.tolist()
@@ -59,7 +64,7 @@ class FeatureExtractor:
         regions = regionprops(labeled)
 
         if not regions:
-            return [0, 0, 0, 0]
+            return [0]*6
 
         largest = max(regions, key=lambda r: r.area)
 
@@ -67,7 +72,9 @@ class FeatureExtractor:
             largest.area,
             largest.perimeter,
             largest.major_axis_length,
-            largest.minor_axis_length
+            largest.minor_axis_length,
+            largest.solidity,
+            largest.extent    
         ]
 
     def extract_all_features(self, img):
