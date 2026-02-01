@@ -1,118 +1,224 @@
+# 🧠 ASD Diagnoser – Machine Learning with MLOps
 
-# ASD Diagnoser – Machine Learning with MLOps
+## Project Overview
+This project implements an **Autism Spectrum Disorder (ASD) diagnosis system** using **structural MRI (sMRI)** images from the **ABIDE-I dataset**.  
+The system follows a **base-paper-aligned handcrafted feature pipeline** and integrates **MLOps practices** to ensure **reproducibility, traceability, and reliable evaluation**.
 
-## Project Description
-This project implements an Autism Spectrum Disorder (ASD) diagnosis system using machine learning on MRI images from the ABIDE-I dataset. The system uses mid-sagittal MRI slices and handcrafted feature extraction methods, followed by Random Forest–based feature selection.  
-MLOps practices are integrated to ensure reproducibility, modularity, and version control.
+The work extends a traditional ML pipeline by incorporating:
+- **DDPM-based data augmentation**
+- **Feature-rich extraction (274 handcrafted features)**
+- **Strict train–test separation**
+- **Experiment tracking and model versioning**
 
 ---
 
 ## Dataset
+
+### Source
 - **Dataset**: ABIDE-I
-- **Image Type**: Mid-sagittal MRI slices
-- **Classes**:
-  - autistic
-  - control
-- **Directory Structure**:
+- **Modality**: Structural MRI (sMRI)
+- **Slice Used**: Full **mid-sagittal slice** extracted from 3D NIfTI volumes
 
-- **data/raw/abide1_data(sagittal_2)/**
-- ├── autistic/
-- └── control/
-- 
+### Classes
+- `Autism`
+- `Control`
 
-The dataset is versioned using **DVC**.
+### Dataset Split (Predefined)
+The dataset is organized into **explicit train and test folders** to avoid data leakage.
 
----
+- data/ 
+- └── augmented_train_500/
+- ├── train/
+- │ ├── Autism/
+- │ └── Control/
+- └── test/
+- ├── Autism/
+- └── Control/
 
-## Feature Extraction (Final Implementation)
-Feature extraction logic is identical to the final implementation notebook.
 
-### Extracted Features
-1. **GLCM Features**
- - Contrast
- - Correlation
- - Energy
- - Homogeneity
- - Mean
- - Variance
- - Entropy
- - Higher-order statistical moments
+- **Training set**: DDPM-augmented images
+- **Test set**: Real (non-augmented) images only
 
-2. **LBP Features**
- - Uniform Local Binary Pattern
- - Block-wise histogram extraction (32×32 blocks)
-
-3. **GFCC-like Morphological Features**
- - Multi-Otsu thresholding
- - Mid-sagittal band analysis
- - Region properties (area, perimeter, axis lengths, solidity, extent)
-
-**Total features per image**: 21
+The dataset is **versioned using DVC**, enabling full data reproducibility across experiments.
 
 ---
 
-### Data Augmentation
-Data augmentation is applied **only to training images** before feature extraction to improve generalization.
+## Preprocessing
 
-**Augmentation techniques:**
-- Horizontal flipping
-- Rotation (±10 degrees)
-- Intensity scaling
+- MRI volumes are loaded from **NIfTI (.nii)** format
+- The **mid-sagittal slice** is extracted along the anatomical midline
+- Images are:
+  - Rotated for correct orientation
+  - Min–max normalized
+  - Resized to **256 × 256**
+  - Converted to grayscale PNG format
 
-Augmented images follow the same handcrafted feature extraction pipeline.
+This preprocessing strictly follows the **base paper implementation**.
+
+---
+
+## Feature Extraction (Base-Paper Aligned)
+
+Feature extraction is **deterministic** and applied **separately to train and test datasets**.
+
+### Extracted Feature Groups
+
+#### 1️⃣ GLCM (Texture Features)
+- Contrast  
+- Correlation  
+- Energy  
+- Homogeneity  
+- Mean intensity  
+- Variance  
+- Entropy  
+- Multi-distance and multi-orientation statistics  
+
+#### 2️⃣ LBP (Local Texture Features)
+- Uniform Local Binary Patterns  
+- Histogram-based encoding across spatial regions  
+
+#### 3️⃣ GFCC-like Morphological Features
+- Multi-Otsu thresholding
+- Region-based properties:
+  - Area
+  - Perimeter
+  - Major axis length
+  - Minor axis length
+  - Shape descriptors (solidity, extent, etc.)
+
+📌 **Total features per image: 274**
+
+This feature configuration matches the **base research paper**, enabling fair comparison.
 
 ---
 
-## Feature Selection
-Feature selection is performed using a **Random Forest classifier**:
+## Data Augmentation
 
-- `n_estimators = 300`
-- `criterion = gini`
-- Features ranked using `feature_importances_`
-- Ranked indices sorted in descending order
-- Ranked feature indices stored for reuse in later stages
+### Method
+- **DDPM (Denoising Diffusion Probabilistic Model)**  
+- Pretrained model applied **offline**
+- Augmentation applied **only to training images**
 
-This logic is identical to the final ML implementation.
+### Purpose
+- Increase data diversity
+- Improve generalization
+- Prevent test data leakage
+
+Augmented images undergo the **same preprocessing and feature extraction pipeline** as real images.
 
 ---
+
+## Feature Selection (Ranking Only)
+
+Feature selection is implemented as **feature ranking**, not hard selection.
+
+### Method
+- **Random Forest–based feature ranking**
+- Parameters:
+  - `n_estimators = 300`
+  - `criterion = gini`
+- Feature importance computed using `feature_importances_`
+
+### Key Design Choices
+- Ranking performed **only on training data**
+- No top-K selection at this stage
+- Ranked feature indices reused consistently during training and evaluation
+
+This ensures **leakage-free and reproducible feature selection**.
+
+---
+
 ## Model Training
-Three machine learning models are trained using RF-ranked top-K features:
 
+Three classical machine learning models are trained using **RF-ranked features**:
+
+### Models
 - **Decision Tree**
 - **K-Nearest Neighbors (k = 3)**
-- **Support Vector Machine (linear kernel)**
+- **Support Vector Machine (Linear Kernel)**
 
-Training uses:
-- 70–30 stratified train–test split
-- Fixed random state for reproducibility
-- Accuracy and ROC-AUC as evaluation metrics
+### Training Strategy
+- Training performed only on training data
+- Model-specific top-K features (derived from prior CV experiments)
+- Fixed random seed for reproducibility
+
+### Metrics Logged During Training
+- Accuracy
+- ROC-AUC
+- Precision
+- Recall
+- F1-score
 
 ---
+
 ## Model Evaluation & Best Model Selection
-- All trained models are evaluated on the same test set
-- Metrics used:
-  - Accuracy
-  - ROC-AUC (primary metric)
+
+### Evaluation Protocol
+- Evaluation performed **only on the held-out test set**
+- No retraining or resplitting during evaluation
+
+### Metrics Used
+- Accuracy  
+- ROC-AUC (**primary selection metric**)  
+- Precision  
+- Recall  
+- F1-score  
+
+### Best Model Selection
 - The best-performing model is selected based on **ROC-AUC**
-- The selected model is registered as the **best model**
+- The selected model is registered as the **final production candidate**
 
 ---
 
 ## MLOps Components Implemented
 
-### Component 1 – Version Control & Model Versioning (Completed)
-- Git for code versioning
-- DVC for data versioning
-- MLflow for model versioning and artifact tracking
-- Weights & Biases for experiment tracking
+### 1️⃣ Code Versioning
+- **Git** is used for versioning all code
+- Enables rollback, comparison, and traceability
 
-### Component 2 – Experiment Tracking (Completed)
-- Hyperparameter tracking
-- Metric tracking (accuracy, ROC-AUC)
-- Model comparison (DT vs KNN vs SVM)
-- Reproducible experiments
+### 2️⃣ Data Versioning
+- **DVC** is used to version:
+  - Original datasets
+  - DDPM-augmented datasets
+- Dataset versions are linked with Git commits
+
+### 3️⃣ Pipeline Modularization
+The pipeline is fully modular:
+
+
+Each module performs a single, well-defined task.
+
+### 4️⃣ Experiment Tracking
+- **MLflow**
+  - Parameter tracking
+  - Metric logging
+  - Model registry
+- **Weights & Biases**
+  - Training visualization
+  - Experiment comparison
+
+### 5️⃣ Pipeline Orchestration
+- A single `main.py` orchestrates:
+  1. Feature extraction
+  2. Feature ranking
+  3. Model training
+  4. Model evaluation
+  5. Model registration
+
+This enables **one-command, end-to-end execution**.
 
 ---
 
+## Key Outcomes
 
+- Base-paper feature richness preserved (274 features)
+- DDPM-based augmentation integrated safely
+- Strict train–test separation maintained
+- Honest generalization performance measured
+- Full experiment and data reproducibility achieved
+- Complete MLOps lifecycle implemented
 
+---
+
+## Conclusion
+This project successfully transforms a **research-oriented machine learning solution** into a **reproducible, auditable, and production-ready MLOps pipeline** for Autism Spectrum Disorder diagnosis using structural MRI data.

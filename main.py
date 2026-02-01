@@ -35,7 +35,7 @@ if __name__ == "__main__":
         # ==================================================
         # STEP 2: TRAIN–TEST SPLIT (FREEZE TEST SET)
         # ==================================================
-        logger.info("PIPELINE STARTED – STEP 2: Rnadom Forest FEATURE SELECTION")
+        logger.info("PIPELINE STARTED – STEP 2: Random Forest FEATURE SELECTION")
         X_train = np.load(os.path.join(FEATURES_DIR, "X_train.npy"))
         y_train = np.load(os.path.join(FEATURES_DIR, "y_train.npy"))
         logger.info(f"Loaded TRAIN features | X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
