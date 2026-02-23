@@ -1,0 +1,6 @@
+outs:
+- md5: 399b3ef9c18388666e33a027f5214bbb.dir
+  size: 32181971
+  nfiles: 1286
+  hash: md5
+  path: Autism_split_valid_2D_mid_sagittal
