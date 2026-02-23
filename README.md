@@ -6,7 +6,7 @@ The system follows a **base-paper-aligned handcrafted feature pipeline** and int
 
 The work extends a traditional ML pipeline by incorporating:
 - **DDPM-based data augmentation**
-- **Feature-rich extraction (274 handcrafted features)**
+- **Feature-rich extraction (279 handcrafted features)**
 - **Strict train–test separation**
 - **Experiment tracking and model versioning**
 
@@ -20,20 +20,20 @@ The work extends a traditional ML pipeline by incorporating:
 - **Slice Used**: Full **mid-sagittal slice** extracted from 3D NIfTI volumes
 
 ### Classes
-- `Autism`
-- `Control`
+- `autistic`
+- `non-autistic`
 
 ### Dataset Split (Predefined)
 The dataset is organized into **explicit train and test folders** to avoid data leakage.
 
 - data/ 
-- └── augmented_train_500/
+- └── Autism_split_valid_2D_mid_sagittal/
 - ├── train/
-- │ ├── Autism/
-- │ └── Control/
+- │ ├── autistic/
+- │ └── non-autistic/
 - └── test/
-- ├── Autism/
-- └── Control/
+- ├── autistic/
+- └── non-autistic/
 
 
 - **Training set**: DDPM-augmented images
@@ -85,8 +85,9 @@ Feature extraction is **deterministic** and applied **separately to train and te
   - Major axis length
   - Minor axis length
   - Shape descriptors (solidity, extent, etc.)
+  - Eccentricity
 
-📌 **Total features per image: 274**
+📌 **Total features per image: 279**
 
 This feature configuration matches the **base research paper**, enabling fair comparison.
 
@@ -134,8 +135,8 @@ Three classical machine learning models are trained using **RF-ranked features**
 
 ### Models
 - **Decision Tree**
-- **K-Nearest Neighbors (k = 3)**
-- **Support Vector Machine (Linear Kernel)**
+- **K-Nearest Neighbors (k = 3,5,7,9)**
+- **Support Vector Machine (Linear Kernel, RBF    Kernel and Polynomial Kernel)**
 
 ### Training Strategy
 - Training performed only on training data
@@ -144,7 +145,7 @@ Three classical machine learning models are trained using **RF-ranked features**
 
 ### Metrics Logged During Training
 - Accuracy
-- ROC-AUC
+- ROC-AUC (Primary selection metric)
 - Precision
 - Recall
 - F1-score

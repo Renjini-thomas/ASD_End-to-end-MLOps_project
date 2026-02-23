@@ -6,16 +6,15 @@ import mlflow
 import mlflow.sklearn
 import wandb
 
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
-from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import (
     accuracy_score,
     roc_auc_score,
-    precision_score,
+    f1_score,
     recall_score,
-    f1_score
+    confusion_matrix
 )
 
 from src.utils.logger import logger
@@ -23,190 +22,270 @@ from src.utils.path import FEATURES_DIR, ARTIFACTS_DIR
 
 
 class ModelTrainer:
+
     def __init__(self, params_path="params.yaml"):
-        # Load params.yaml
+
+        # -----------------------
+        # Load Params
+        # -----------------------
         with open(params_path, "r") as f:
             self.params = yaml.safe_load(f)
 
-        # MLflow config
+        # -----------------------
+        # MLflow Setup
+        # -----------------------
         mlflow.set_tracking_uri("file:./mlruns")
-        mlflow.set_experiment("ASD_Diagnoser_Model_Training")
+        mlflow.set_experiment(
+            "ASD_Diagnoser_Model_Training"
+        )
 
-        # Artifact dirs
-        self.models_dir = os.path.join(ARTIFACTS_DIR, "models")
-        os.makedirs(self.models_dir, exist_ok=True)
+        # -----------------------
+        # Model save directory
+        # -----------------------
+        self.models_dir = os.path.join(
+            ARTIFACTS_DIR,
+            "models"
+        )
 
-        # Params
-        self.ct_k = self.params["features"]["ct_best"]
-        self.knn_k = self.params["features"]["knn_best"]
-        self.svm_k = self.params["features"]["svm_best"]
+        os.makedirs(
+            self.models_dir,
+            exist_ok=True
+        )
 
-        self.knn_neighbors = self.params["models"]["knn_neighbors"]
-        self.svm_kernel = self.params["models"]["svm_kernel"]
-
+    # ======================================================
+    # LOAD DATA
+    # ======================================================
     def _load_data(self):
-        """
-        Load predefined train/test split and RF ranking
-        """
-        X_train = np.load(os.path.join(FEATURES_DIR, "X_train.npy"))
-        y_train = np.load(os.path.join(FEATURES_DIR, "y_train.npy"))
-        X_test = np.load(os.path.join(FEATURES_DIR, "X_test.npy"))
-        y_test = np.load(os.path.join(FEATURES_DIR, "y_test.npy"))
 
-        sorted_idx = np.load(
-            os.path.join(FEATURES_DIR, "sorted_feature_indices.npy")
+        X_train = np.load(
+            os.path.join(FEATURES_DIR, "X_train.npy")
+        )
+
+        y_train = np.load(
+            os.path.join(FEATURES_DIR, "y_train.npy")
+        )
+
+        X_test = np.load(
+            os.path.join(FEATURES_DIR, "X_test.npy")
+        )
+
+        y_test = np.load(
+            os.path.join(FEATURES_DIR, "y_test.npy")
         )
 
         logger.info(
-            f"Loaded data | "
-            f"X_train={X_train.shape}, X_test={X_test.shape}"
+            f"Loaded Features | "
+            f"Train={X_train.shape} "
+            f"Test={X_test.shape}"
         )
 
-        return X_train, X_test, y_train, y_test, sorted_idx
+        return X_train, X_test, y_train, y_test
 
-    # ==================================================
-    # Decision Tree
-    # ==================================================
-    def train_decision_tree(self):
-        logger.info(f"Training Decision Tree | Top-{self.ct_k} features")
+    # ======================================================
+    # METRICS FUNCTION (COLAB STYLE)
+    # ======================================================
+    def _evaluate_metrics(
+        self,
+        y_true,
+        y_pred,
+        y_prob
+    ):
 
-        Xtr, Xte, ytr, yte, idx = self._load_data()
+        acc = accuracy_score(
+            y_true,
+            y_pred
+        )
 
-        Xtr = Xtr[:, idx][:, :self.ct_k]
-        Xte = Xte[:, idx][:, :self.ct_k]
+        auc = roc_auc_score(
+            y_true,
+            y_prob
+        )
 
-        with mlflow.start_run(run_name="DecisionTree"):
-            wandb.init(project="ASD-Diagnoser", name="DecisionTree")
+        f1 = f1_score(
+            y_true,
+            y_pred
+        )
 
-            model = DecisionTreeClassifier(
-                criterion="gini",
-                splitter="best",
-                max_depth=None,
-                min_samples_split=2,
-                min_samples_leaf=1,
+        sensitivity = recall_score(
+            y_true,
+            y_pred
+        )
+
+        tn, fp, fn, tp = confusion_matrix(
+            y_true,
+            y_pred
+        ).ravel()
+
+        specificity = tn / (tn + fp + 1e-9)
+
+        return {
+
+            "accuracy": acc,
+            "roc_auc": auc,
+            "f1_score": f1,
+            "sensitivity": sensitivity,
+            "specificity": specificity
+        }
+
+    # ======================================================
+    # TRAIN ALL MODELS
+    # ======================================================
+    def train_all_models(self):
+
+        logger.info(
+            "PIPELINE STEP 3 : MODEL TRAINING STARTED"
+        )
+
+        Xtr, Xte, ytr, yte = self._load_data()
+
+        # ===============================
+        # EXACT COLAB MODELS
+        # ===============================
+        models = {
+
+            "KNN3":
+            KNeighborsClassifier(3),
+
+            "KNN5":
+            KNeighborsClassifier(5),
+
+            "KNN7":
+            KNeighborsClassifier(7),
+
+            "KNN9":
+            KNeighborsClassifier(9),
+
+            "SVM_linear":
+            SVC(
+                kernel="linear",
+                probability=True,
+                class_weight="balanced",
                 random_state=42
-            )
+            ),
 
-            model.fit(Xtr, ytr)
-
-            y_pred = model.predict(Xte)
-            y_prob = model.predict_proba(Xte)[:, 1]
-
-            metrics = {
-                "accuracy": accuracy_score(yte, y_pred),
-                "roc_auc": roc_auc_score(yte, y_prob),
-                # "precision": precision_score(yte, y_pred),
-                # "recall": recall_score(yte, y_pred),
-                # "f1_score": f1_score(yte, y_pred)
-            }
-
-            for k, v in metrics.items():
-                mlflow.log_metric(k, v)
-
-            mlflow.log_param("top_k_features", self.ct_k)
-            mlflow.log_param("model", "DecisionTree")
-
-            mlflow.sklearn.log_model(model, "decision_tree")
-            joblib.dump(model, os.path.join(self.models_dir, "decision_tree.pkl"))
-
-            wandb.log(metrics)
-            wandb.finish()
-
-        logger.info(f"Decision Tree metrics: {metrics}")
-
-    # ==================================================
-    # KNN
-    # ==================================================
-    def train_knn(self):
-        logger.info(f"Training KNN | Top-{self.knn_k} features")
-
-        Xtr, Xte, ytr, yte, idx = self._load_data()
-
-        Xtr = Xtr[:, idx][:, :self.knn_k]
-        Xte = Xte[:, idx][:, :self.knn_k]
-
-        with mlflow.start_run(run_name="KNN"):
-            wandb.init(project="ASD-Diagnoser", name="KNN")
-
-            model = KNeighborsClassifier(
-                n_neighbors=self.knn_neighbors
-            )
-
-            model.fit(Xtr, ytr)
-
-            y_pred = model.predict(Xte)
-            y_prob = model.predict_proba(Xte)[:, 1]
-
-            metrics = {
-                "accuracy": accuracy_score(yte, y_pred),
-                "roc_auc": roc_auc_score(yte, y_prob),
-                # "precision": precision_score(yte, y_pred),
-                # "recall": recall_score(yte, y_pred),
-                # "f1_score": f1_score(yte, y_pred)
-            }
-
-            for k, v in metrics.items():
-                mlflow.log_metric(k, v)
-
-            mlflow.log_param("top_k_features", self.knn_k)
-            mlflow.log_param("n_neighbors", self.knn_neighbors)
-
-            mlflow.sklearn.log_model(model, "knn")
-            joblib.dump(model, os.path.join(self.models_dir, "knn.pkl"))
-
-            wandb.log(metrics)
-            wandb.finish()
-
-        logger.info(f"KNN metrics: {metrics}")
-
-    # ==================================================
-    # SVM
-    # ==================================================
-    def train_svm(self):
-        logger.info(f"Training SVM | Top-{self.svm_k} features")
-
-        Xtr, Xte, ytr, yte, idx = self._load_data()
-
-        Xtr = Xtr[:, idx][:, :self.svm_k]
-        Xte = Xte[:, idx][:, :self.svm_k]
-
-        scaler = StandardScaler()
-        Xtr = scaler.fit_transform(Xtr)
-        Xte = scaler.transform(Xte)
-
-        with mlflow.start_run(run_name="SVM"):
-            wandb.init(project="ASD-Diagnoser", name="SVM")
-
-            model = SVC(
-                kernel=self.svm_kernel,
+            "SVM_rbf":
+            SVC(
+                kernel="rbf",
                 probability=True,
                 random_state=42
+            ),
+
+            "SVM_poly":
+            SVC(
+                kernel="poly",
+                degree=3,
+                probability=True,
+                random_state=42
+            ),
+
+            "Tree":
+            DecisionTreeClassifier(
+                class_weight="balanced",
+                max_depth=10,
+                min_samples_leaf=5,
+                random_state=42
+            )
+        }
+
+        # ===============================
+        # TRAIN LOOP
+        # ===============================
+        for name, model in models.items():
+
+            logger.info(
+                f"Training Model : {name}"
             )
 
-            model.fit(Xtr, ytr)
+            with mlflow.start_run(
+                run_name=name
+            ):
 
-            y_pred = model.predict(Xte)
-            y_prob = model.predict_proba(Xte)[:, 1]
+                # WandB tracking
+                wandb.init(
+                    project="ASD-Diagnoser",
+                    name=name,
+                    reinit=True
+                )
 
-            metrics = {
-                "accuracy": accuracy_score(yte, y_pred),
-                "roc_auc": roc_auc_score(yte, y_prob),
-                # "precision": precision_score(yte, y_pred),
-                # "recall": recall_score(yte, y_pred),
-                # "f1_score": f1_score(yte, y_pred)
-            }
+                # -------------------
+                # TRAIN
+                # -------------------
+                model.fit(
+                    Xtr,
+                    ytr
+                )
 
-            for k, v in metrics.items():
-                mlflow.log_metric(k, v)
+                # -------------------
+                # TEST PREDICTION
+                # -------------------
+                y_pred = model.predict(Xte)
 
-            mlflow.log_param("top_k_features", self.svm_k)
-            mlflow.log_param("kernel", self.svm_kernel)
+                y_prob = model.predict_proba(
+                    Xte
+                )[:, 1]
 
-            mlflow.sklearn.log_model(model, "svm")
-            joblib.dump(model, os.path.join(self.models_dir, "svm.pkl"))
-            joblib.dump(scaler, os.path.join(self.models_dir, "svm_scaler.pkl"))
+                metrics = self._evaluate_metrics(
 
-            wandb.log(metrics)
-            wandb.finish()
+                    yte,
+                    y_pred,
+                    y_prob
+                )
 
-        logger.info(f"SVM metrics: {metrics}")
+                # -------------------
+                # MLflow Logging
+                # -------------------
+                for k, v in metrics.items():
+
+                    mlflow.log_metric(
+                        k,
+                        float(v)
+                    )
+
+                mlflow.log_param(
+                    "model_name",
+                    name
+                )
+
+                mlflow.log_param(
+                    "dataset",
+                    self.params["dataset"]["name"]
+                )
+
+                mlflow.log_param(
+                    "augmentation",
+                    "ddpm_augmented"
+                )
+
+                # -------------------
+                # SAVE MODEL
+                # -------------------
+                model_path = os.path.join(
+
+                    self.models_dir,
+                    f"{name}.pkl"
+                )
+
+                joblib.dump(
+                    model,
+                    model_path
+                )
+
+                # MLflow model log
+                mlflow.sklearn.log_model(
+                    model,
+                    artifact_path=name
+                )
+
+                # WandB log
+                wandb.log(metrics)
+
+                wandb.finish()
+
+                logger.info(
+                    f"{name} Training Completed "
+                    f"| Metrics : {metrics}"
+                )
+
+        logger.info(
+            "ALL MODELS TRAINED SUCCESSFULLY"
+        )

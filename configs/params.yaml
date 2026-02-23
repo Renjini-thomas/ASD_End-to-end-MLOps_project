@@ -1,25 +1,25 @@
 dataset:
-  name: augmented_train_500
+  name: Autism_split_valid_2D_mid_sagittal
   type: ddpm_augmented
   image_size: 256
   split: predefined        # IMPORTANT
-  train_dir: data/augmented_train_500/train
-  test_dir: data/augmented_train_500/test
+  train_dir: data/Autism_split_valid_2D_mid_sagittal/train
+  test_dir: data/Autism_split_valid_2D_mid_sagittal/test
   classes:
-    - Autism
-    - Control
+    - autistic
+    - non-autistic
 
 features:
   total_extracted: 274
-  selection_method: random_forest
-  ct_best: 20
-  knn_best: 10
-  svm_best: 20
+  rf_selected: 40
 
 
 models:
-  knn_neighbors: 3
-  svm_kernel: linear
+  knn_neighbors: [3,5,7,9]
+  svm_kernels:
+    - linear
+    - rbf
+    - poly
   rf_estimators: 300
 
 augmentation:

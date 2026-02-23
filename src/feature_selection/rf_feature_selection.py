@@ -1,63 +1,62 @@
 import os
 import numpy as np
+import joblib
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
 
 from src.utils.logger import logger
 from src.utils.path import FEATURES_DIR
 
 
 class RFFeatureSelector:
-    """
-    Random Forest based feature ranking.
-    NOTE:
-    - This class ONLY ranks features.
-    - It does NOT select top-K features.
-    """
 
-    def __init__(self, n_estimators=300, random_state=42):
-        self.n_estimators = n_estimators
-        self.random_state = random_state
+    def __init__(self, k=40):
 
-    def rank_features(self, X_train, y_train):
-        """
-        Rank features using Random Forest importance.
+        self.k = k
 
-        Args:
-            X_train (np.ndarray): Training feature matrix
-            y_train (np.ndarray): Training labels
+    def select_features(self,X_train,y_train,X_test):
 
-        Returns:
-            np.ndarray: Indices of features sorted by importance (descending)
-        """
-        logger.info("Starting RF feature ranking (TRAIN data only)")
+        logger.info("RF Selecting Top Features")
 
         rf = RandomForestClassifier(
-            n_estimators=self.n_estimators,
-            criterion="gini",
-            random_state=self.random_state,
+            n_estimators=300,
+            random_state=42,
             n_jobs=-1
         )
 
-        rf.fit(X_train, y_train)
+        rf.fit(X_train,y_train)
 
         importances = rf.feature_importances_
-        sorted_indices = np.argsort(importances)[::-1]
 
-        # Save ranking artifacts
-        os.makedirs(FEATURES_DIR, exist_ok=True)
+        sorted_idx = np.argsort(importances)[::-1][:self.k]
 
+        # APPLY SELECTION
+        X_train = X_train[:,sorted_idx]
+        X_test = X_test[:,sorted_idx]
+
+        # SAVE INDEX
         np.save(
-            os.path.join(FEATURES_DIR, "sorted_feature_indices.npy"),
-            sorted_indices
+            os.path.join(FEATURES_DIR,"rf_selected_indices.npy"),
+            sorted_idx
         )
 
-        np.save(
-            os.path.join(FEATURES_DIR, "feature_importances.npy"),
-            importances
+        # =====================
+        # SCALING (COLAB STYLE)
+        # =====================
+
+        scaler = StandardScaler()
+
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+
+        joblib.dump(
+            scaler,
+            os.path.join(FEATURES_DIR,"fusion_scaler.pkl")
         )
 
-        logger.info(
-            f"RF feature ranking completed | Total features ranked: {len(sorted_indices)}"
-        )
+        np.save(os.path.join(FEATURES_DIR,"X_train.npy"),X_train)
+        np.save(os.path.join(FEATURES_DIR,"X_test.npy"),X_test)
 
-        return sorted_indices
+        logger.info("RF Selection + Scaling Completed")
+
+        return X_train,X_test

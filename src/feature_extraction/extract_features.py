@@ -1,10 +1,14 @@
 import os
 import cv2
+from cv2.gapi import mask
+from matplotlib.pyplot import hist
+from networkx import radius
 import numpy as np
 
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 from skimage.filters import threshold_multiotsu
 from skimage.measure import regionprops, label
+from skimage.morphology import closing, disk, opening
 
 from src.utils.logger import logger
 from src.utils.path import (
@@ -22,67 +26,96 @@ class FeatureExtractor:
     """
 
     def extract_glcm(self, img):
-        glcm = graycomatrix(
-            img,
-            distances=[1],
-            angles=[0, np.pi/4, np.pi/2, 3*np.pi/4],
-            levels=256,
-            symmetric=True,
-            normed=True
-        )
+        glcm = graycomatrix(img,[1],[0],256,True,True)
+        P = glcm[:,:,0,0]
+        P = P/(P.sum()+1e-12)
 
-        return [
-            graycoprops(glcm, 'contrast').mean(),
-            graycoprops(glcm, 'correlation').mean(),
-            graycoprops(glcm, 'energy').mean(),
-            graycoprops(glcm, 'homogeneity').mean(),
-            graycoprops(glcm, 'ASM').mean(),
-            graycoprops(glcm, 'dissimilarity').mean(),
-            np.mean(img),
-            np.var(img),
-            -np.sum(glcm * np.log2(glcm + 1e-10)),
-            np.mean((img - np.mean(img)) ** 3),   # skewness proxy
-            np.mean((img - np.mean(img)) ** 4),   # kurtosis proxy
-            glcm.max()
-        ]
+        i,j = np.indices(P.shape)
+
+        contrast = np.sum(P*(i-j)**2)
+        dissimilarity = np.sum(P*np.abs(i-j))
+        homogeneity = np.sum(P/(1+(i-j)**2))
+        energy = np.sum(P**2)
+        asm = energy
+        correlation = graycoprops(glcm,'correlation')[0,0]
+
+        mean_i = np.sum(i*P)
+        mean_j = np.sum(j*P)
+
+        var = (np.sum((i-mean_i)**2*P)+np.sum((j-mean_j)**2*P))/2
+        entropy = -np.sum(P*np.log(P+1e-12))
+
+        mu = mean_i+mean_j
+        shade = np.sum(((i+j-mu)**3)*P)
+        prominence = np.sum(((i+j-mu)**4)*P)
+
+        autocorr = np.sum(i*j*P)
+
+        return np.array([
+        contrast, correlation, energy, homogeneity,
+        asm, dissimilarity, entropy,
+        (mean_i+mean_j)/2, var,
+        shade, prominence, autocorr
+    ])
 
     def extract_lbp(self, img):
-        lbp = local_binary_pattern(img, P=8, R=1, method="uniform")
-        hist, _ = np.histogram(
-            lbp.ravel(),
-            bins=256,
-            range=(0, 256),
-            density=True
-        )
-        return hist.tolist()
+        radius = 1
+        points = 8
+
+        lbp = local_binary_pattern(img, points, radius, method="default")
+
+        hist,_ = np.histogram(lbp.ravel(),
+                          bins=256,
+                          range=(0,256))
+
+        hist = hist / (hist.sum() + 1e-6)
+
+        return hist
 
     def extract_gfcc(self, img):
-        thresholds = threshold_multiotsu(img, classes=3)
-        segmented = np.digitize(img, thresholds)
+        th = threshold_multiotsu(img,3)
+        seg = np.digitize(img,bins=th)
 
-        labeled = label(segmented)
-        regions = regionprops(labeled)
+        mask = seg==2
+        mask = opening(mask,disk(3))
+        mask = closing(mask,disk(5))
 
-        if not regions:
-            return [0]*6
+        lbl = label(mask)
+        props = regionprops(lbl)
 
-        largest = max(regions, key=lambda r: r.area)
+        if not props:
+            return [0]*11
+
+        r = max(props,key=lambda x:x.area)
+
+        circularity = (4*np.pi*r.area)/(r.perimeter**2 + 1e-6)
+        axis_ratio = r.major_axis_length/(r.minor_axis_length+1e-6)
+        convex_ratio = r.area/(r.convex_area+1e-6)
+
+        minr, minc, maxr, maxc = r.bbox
+        bbox_ratio = (maxc-minc)/(maxr-minr+1e-6)
 
         return [
-            largest.area,
-            largest.perimeter,
-            largest.major_axis_length,
-            largest.minor_axis_length,
-            largest.solidity,
-            largest.extent    
-        ]
+        r.area,
+        r.perimeter,
+        r.major_axis_length,
+        r.minor_axis_length,
+        r.eccentricity,
+        r.solidity,
+        r.extent,
+        circularity,
+        axis_ratio,
+        convex_ratio,
+        bbox_ratio
+    ]
 
     def extract_all_features(self, img):
-        return (
-            self.extract_glcm(img)
-            + self.extract_lbp(img)
-            + self.extract_gfcc(img)
-        )
+        glcm = self.extract_glcm(img)
+        lbp = self.extract_lbp(img)
+        gfcc = self.extract_gfcc(img)
+        fusion = np.concatenate([glcm, lbp, gfcc])
+
+        return fusion
 
 
 def _process_split(dataset, split_name):
