@@ -1,0 +1,45 @@
+stages:
+
+  feature_extraction:
+    cmd: python src/feature_extraction/extract_features.py
+    deps:
+      - src/feature_extraction/extract_features.py
+      - data/Autism_split_valid_2D_mid_sagittal
+      - src/utils/path.py
+    outs:
+      - artifacts/features/X_train.npy
+      - artifacts/features/X_test.npy
+      - artifacts/features/y_train.npy
+      - artifacts/features/y_test.npy
+
+
+  feature_selection:
+    cmd: python src/feature_selection/rf_feature_selection.py
+    deps:
+      - src/feature_selection/rf_feature_selection.py
+      - artifacts/features/X_train.npy
+      - artifacts/features/y_train.npy
+    outs:
+      - artifacts/features/rf_selected_indices.npy
+      - artifacts/features/fusion_scaler.pkl
+
+
+  training:
+    cmd: python src/training/train_models.py
+    deps:
+      - src/training/train_models.py
+      - artifacts/features/X_train.npy
+      - artifacts/features/y_train.npy
+      - artifacts/features/rf_selected_indices.npy
+      - configs/params.yaml
+    outs:
+      - artifacts/models
+
+
+  evaluation:
+    cmd: python src/evaluation/evaluate.py
+    deps:
+      - src/evaluation/evaluate.py
+      - artifacts/models
+      - artifacts/features/X_test.npy
+      - artifacts/features/y_test.npy

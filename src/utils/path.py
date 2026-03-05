@@ -16,18 +16,18 @@ DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
 
 # DDPM augmented dataset
-AUGMENTED_DATA_DIR = os.path.join(DATA_DIR, "augmented_train_500")
+AUGMENTED_DATA_DIR = os.path.join(DATA_DIR, "Autism_split_valid_2D_mid_sagittal")
 
 # Train / Test split (already created)
 TRAIN_DIR = os.path.join(AUGMENTED_DATA_DIR, "train")
 TEST_DIR = os.path.join(AUGMENTED_DATA_DIR, "test")
 
 # Class directories
-TRAIN_AUTISM_DIR = os.path.join(TRAIN_DIR, "Autism")
-TRAIN_CONTROL_DIR = os.path.join(TRAIN_DIR, "Control")
+TRAIN_AUTISM_DIR = os.path.join(TRAIN_DIR, "autistic")
+TRAIN_CONTROL_DIR = os.path.join(TRAIN_DIR, "non-autistic")
 
-TEST_AUTISM_DIR = os.path.join(TEST_DIR, "Autism")
-TEST_CONTROL_DIR = os.path.join(TEST_DIR, "Control")
+TEST_AUTISM_DIR = os.path.join(TEST_DIR, "autistic")
+TEST_CONTROL_DIR = os.path.join(TEST_DIR, "non-autistic")
 
 # =========================
 # ARTIFACTS
